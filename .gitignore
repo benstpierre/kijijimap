@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+map.html
+.DS_Store
