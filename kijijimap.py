@@ -189,14 +189,33 @@ NEIGHBORHOODS = {
         {"name": "Airdrie", "bounds": [51.25, -114.05, 51.30, -113.96]},
         {"name": "Okotoks", "bounds": [50.71, -113.99, 50.74, -113.95]},
         {"name": "Cochrane", "bounds": [51.17, -114.50, 51.20, -114.44]},
+        # Edmonton - preferred
+        {"name": "Glenora / Westmount", "bounds": [53.53, -113.55, 53.56, -113.52]},
+        {"name": "Crestwood / Parkview / Laurier Heights", "bounds": [53.51, -113.57, 53.54, -113.53]},
+        {"name": "Windermere / Keswick", "bounds": [53.43, -113.58, 53.47, -113.53]},
+        {"name": "Ambleside / Grange", "bounds": [53.47, -113.58, 53.50, -113.53]},
+        {"name": "Riverbend / Terwillegar", "bounds": [53.45, -113.58, 53.50, -113.52]},
+        {"name": "Magrath Heights / Cameron Heights", "bounds": [53.44, -113.59, 53.48, -113.55]},
+        {"name": "Wolf Willow / Brander Gardens", "bounds": [53.46, -113.56, 53.49, -113.52]},
+        {"name": "Strathcona / Bonnie Doon", "bounds": [53.51, -113.49, 53.53, -113.45]},
+        {"name": "Summerside / Ellerslie", "bounds": [53.40, -113.53, 53.43, -113.47]},
+        {"name": "St. Albert", "bounds": [53.61, -113.65, 53.65, -113.58]},
+        {"name": "Sherwood Park", "bounds": [53.51, -113.35, 53.55, -113.27]},
+        {"name": "Spruce Grove / Stony Plain", "bounds": [53.53, -113.93, 53.56, -113.85]},
     ],
     "avoid": [
+        # Calgary - avoid
         {"name": "Dover", "bounds": [51.02, -113.99, 51.04, -113.96]},
         {"name": "Forest Lawn / Penbrooke", "bounds": [51.04, -113.99, 51.06, -113.95]},
         {"name": "Temple", "bounds": [51.06, -113.97, 51.09, -113.94]},
         {"name": "Marlborough", "bounds": [51.04, -113.97, 51.07, -113.94]},
         {"name": "Falconridge / Castleridge", "bounds": [51.09, -113.97, 51.11, -113.93]},
         {"name": "Pineridge", "bounds": [51.06, -113.96, 51.09, -113.93]},
+        # Edmonton - avoid
+        {"name": "Alberta Ave / Norwood", "bounds": [53.56, -113.49, 53.58, -113.47]},
+        {"name": "McCauley / Boyle Street", "bounds": [53.54, -113.49, 53.56, -113.46]},
+        {"name": "Central McDougall / Queen Mary Park", "bounds": [53.55, -113.51, 53.57, -113.49]},
+        {"name": "Abbottsfield / Rundle", "bounds": [53.57, -113.43, 53.59, -113.39]},
     ],
 }
 
@@ -393,16 +412,40 @@ legend.addTo(map);
 </html>"""
 
 
+CACHE_PATH = "/usr/local/code/throwaway/kijijimap/listings_cache.json"
+OUT_PATH = "/usr/local/code/throwaway/kijijimap/map.html"
+
+
 def main():
+    # --regen: rebuild map from cached listings (no re-scraping)
+    if len(sys.argv) >= 2 and sys.argv[1] == "--regen":
+        try:
+            with open(CACHE_PATH) as f:
+                cached = json.load(f)
+            search_url = cached["search_url"]
+            listings = cached["listings"]
+        except (FileNotFoundError, KeyError, json.JSONDecodeError):
+            print("No cached listings found. Run a full scrape first.")
+            sys.exit(1)
+
+        print(f"Regenerating map from {len(listings)} cached listings...")
+        html = generate_html(listings, search_url)
+        with open(OUT_PATH, "w") as f:
+            f.write(html)
+        print(f"Map written to {OUT_PATH}")
+        webbrowser.open(f"file://{OUT_PATH}")
+        return
+
     if len(sys.argv) < 2:
-        print("Usage: python3 kijijimap.py <kijiji-search-url> [max-pages]")
-        print('Example: python3 kijijimap.py "https://www.kijiji.ca/b-cars-trucks/alberta/toyota__lexus__honda__acura/c174l9003a54?for-sale-by=ownr&price=7500__12000"')
+        print("Usage:")
+        print('  python3 kijijimap.py <kijiji-search-url> [max-pages]  # scrape and map')
+        print('  python3 kijijimap.py --regen                          # rebuild map from cache')
         sys.exit(1)
 
     search_url = sys.argv[1]
     max_pages = int(sys.argv[2]) if len(sys.argv) > 2 else 5
 
-    print(f"\n=== KijijiMap ===")
+    print(f"\n=== Uncle Bernie's Used Car Finder ===")
     print(f"Search URL: {search_url}")
     print(f"Max pages: {max_pages}\n")
 
@@ -422,11 +465,15 @@ def main():
         print("No listings with location data found.")
         sys.exit(1)
 
+    # Cache listings for --regen
+    with open(CACHE_PATH, "w") as f:
+        json.dump({"search_url": search_url, "listings": located}, f)
+    print(f"Cached {len(located)} listings to {CACHE_PATH}")
+
     html = generate_html(located, search_url)
-    out_path = "/usr/local/code/throwaway/kijijimap/map.html"
-    with open(out_path, "w") as f:
+    with open(OUT_PATH, "w") as f:
         f.write(html)
-    print(f"Map written to {out_path}")
+    print(f"Map written to {OUT_PATH}")
 
     port = 8787
 
